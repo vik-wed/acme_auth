@@ -1,7 +1,7 @@
 const express = require("express");
 const app = express();
 const {
-  models: { User },
+  models: { User, Note },
 } = require("./db");
 const path = require("path");
 
@@ -10,6 +10,19 @@ app.use(express.json());
 
 // routes
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "index.html")));
+
+app.get("/api/users/:id/notes", async (req, res, next) => {
+  try {
+    const user = await User.byToken(req.headers.authorization);
+    const userNotes = await Note.findAll({ where: { userId: req.params.id } });
+    if (user.id !== req.params.id) {
+      res.send("Error");
+    }
+    res.send(userNotes);
+  } catch (ex) {
+    next(ex);
+  }
+});
 
 app.post("/api/auth", async (req, res, next) => {
   try {

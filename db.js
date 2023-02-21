@@ -6,6 +6,7 @@ const config = {
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const SALT = 10;
 
 if (process.env.LOGGING) {
   delete config.logging;
@@ -20,9 +21,16 @@ const User = conn.define("user", {
   password: STRING,
 });
 
+const Note = conn.define("note", {
+  text: STRING,
+});
+
+User.hasMany(Note);
+Note.belongsTo(User);
+
 User.byToken = async (token) => {
   try {
-    const userId = await jwt.verify(token, process.env.SECRET_KEY);
+    const { userId } = jwt.verify(token, process.env.SECRET_KEY);
     const user = await User.findByPk(userId);
     if (user) {
       return user;
@@ -46,8 +54,7 @@ User.authenticate = async ({ username, password }) => {
   if (user) {
     const result = await bcrypt.compare(password, user.password);
     if (result) {
-      const token = await jwt.sign(user.id, process.env.SECRET_KEY);
-      return token;
+      return jwt.sign({ userId: user.id }, process.env.SECRET_KEY);
     }
   }
   const error = Error("bad credentials");
@@ -56,7 +63,6 @@ User.authenticate = async ({ username, password }) => {
 };
 
 User.beforeCreate(async (user) => {
-  const SALT = 10;
   const hashedPassword = await bcrypt.hash(user.password, SALT);
   user.password = hashedPassword;
 });
@@ -71,12 +77,25 @@ const syncAndSeed = async () => {
   const [lucy, moe, larry] = await Promise.all(
     credentials.map((credential) => User.create(credential))
   );
+  const notes = [
+    { text: "hello world", userId: lucy.id },
+    { text: "goodbye world", userId: lucy.id },
+    { text: "hello again", userId: lucy.id },
+    { text: "how is everybody", userId: moe.id },
+    { text: "doing today", userId: moe.id },
+    { text: "we are adding", userId: larry.id },
+    { text: "notes", userId: larry.id },
+    { text: "to every", userId: larry.id },
+    { text: "single user", userId: larry.id },
+  ];
+  const allNotes = await Promise.all(notes.map((note) => Note.create(note)));
   return {
     users: {
       lucy,
       moe,
       larry,
     },
+    allNotes,
   };
 };
 
@@ -84,5 +103,6 @@ module.exports = {
   syncAndSeed,
   models: {
     User,
+    Note,
   },
 };
